@@ -1,0 +1,233 @@
+substitutions:
+  min_percentage: "5"
+  default_transition: "500" # in ms
+  name: mijamonitorlamp
+  friendly_name: Mi Monitor Light Bar 1S
+
+esphome:
+  name: mijamonitorlamp
+  friendly_name: ${friendly_name}
+  area: Office
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_FREERTOS_UNICORE: y
+    advanced:
+      # See: https://github.com/esphome/issues/issues/4830
+      ignore_efuse_mac_crc: true
+      ignore_efuse_custom_mac: true
+
+globals:
+  - id: min_percentage
+    type: int
+    restore_value: true
+    initial_value: '${min_percentage}'
+
+logger:
+
+# TODO: update with dentra's repo after mjgdyk01yl is merged
+external_components:
+  - source:
+      type: git
+      url: https://github.com/vanzi11a/esphome-components
+      ref: add_mjgdyk01yl_support
+
+power_supply:
+  - id: power
+    pin: GPIO4
+    keep_on_time: 0s
+    enable_time: 0s
+
+output:
+  - platform: ledc
+    pin: GPIO19
+    id: gpio_cw
+    frequency: 40000Hz
+    power_supply: power
+
+  - platform: ledc
+    pin: GPIO21
+    id: gpio_ww
+    frequency: 40000Hz
+    power_supply: power
+
+  - platform: template
+    id: output_cw
+    type: float
+    write_action:
+      - if:
+          condition:
+            lambda: return state > 0;
+          then:
+            - output.set_level:
+                id: gpio_cw
+                level: !lambda |-
+                  float min=static_cast<float>(id(min_percentage))/100.0f;
+                  float k=(1.0f-min)/0.99f;
+                  float m=(0.99f-1.0f+min)/0.99f;
+                  return k*state+m;
+          else:
+            - output.set_level:
+                id: gpio_cw
+                level: 0
+
+  - platform: template
+    id: output_ww
+    type: float
+    write_action:
+      - if:
+          condition:
+            lambda: return state > 0;
+          then:
+            - output.set_level:
+                id: gpio_ww
+                level: !lambda |-
+                  float min=static_cast<float>(id(min_percentage))/100.0f;
+                  float k=(1.0f-min)/0.99f;
+                  float m=(0.99f-1.0f+min)/0.99f;
+                  return k*state+m;
+          else:
+            - output.set_level:
+                id: gpio_ww
+                level: 0
+
+light:
+  - platform: cwww
+    id: light1
+    name: "Light"
+    default_transition_length: ${default_transition}ms
+    constant_brightness: true
+    cold_white: gpio_cw
+    warm_white: gpio_ww
+    cold_white_color_temperature: 6450 K
+    warm_white_color_temperature: 2650 K # 2500k is the original value of the lamp. To correct binning for 2700k to look more like 2700k use 2650k instead
+    restore_mode: RESTORE_DEFAULT_OFF
+    gamma_correct: 1
+
+
+select:
+  - platform: template
+    name: Mi Monitor Light Bar Preset
+    id: mijamonitorlamp_preset
+    options:
+      - "Office" # 4500K Brightness 100%
+      - "Reading" # 5000K Brightness 100%
+      - "Lesiure" # 4000K, Brightness 50%
+      - "Computer" # 2700K, Brightness 50%
+      - "Warm"     # 3500K Brightness 60%
+    #  - "Blinking"
+    # just blinks 5 times, not something useful
+    optimistic: true
+    on_value:
+      then:
+        lambda: !lambda |-
+          auto call = id(light1).turn_on();
+          call.set_transition_length(${default_transition});
+          float t=0.0f;
+
+          switch(i) {
+            case 0:
+              // Mired is an acronym for MIcro REciprocal Degree, a measurement derived by dividing one million by the color temperature in Kelvin.
+              t=1000000 / 4500;
+              call.set_color_temperature(t);
+              call.set_brightness(1.0);
+              break;
+            case 1:
+              t=1000000 / 5000;
+              call.set_color_temperature(t);
+              call.set_brightness(1.0);
+              break;
+            case 2:
+              t=1000000 / 4000;
+              call.set_color_temperature(t);
+              call.set_brightness(0.5);
+              break;
+            case 3:
+              t=1000000 / 2700;
+              call.set_color_temperature(t);
+              call.set_brightness(0.5);
+              break;
+            case 4:
+              t=1000000 / 3500;
+              call.set_color_temperature(t);
+              call.set_brightness(0.6);
+              break;
+          }
+          call.perform();
+
+esp32_ble_tracker:
+  max_connections: 1 # Only have 1 remote
+  scan_parameters:
+    active: false
+
+sensor:
+  - platform: miot_ylkg0xyl
+    mac_address: ${dimmer_mac_address}
+    bindkey: ${dimmer_bindkey}
+    product_id: 0x15CE
+    on_short_press:
+      - then:
+          - light.toggle:
+              id: light1
+
+    on_long_press:
+      - then:
+          - logger.log: knob was long pressed
+          - select.next:
+              id: mijamonitorlamp_preset
+              cycle: true
+
+    on_rotate_left:
+      - then:
+          - if:
+              condition:
+                light.is_on: light1
+              then:
+                - lambda: |-
+                    float min_brightness = 0.07;
+                    float max_brightness = 1.0;
+                    auto cur_brightness = id(light1).current_values.get_brightness();
+                    auto new_brightness = max(min_brightness, min(max_brightness, cur_brightness - (x*2/100.0f)));
+                    auto call = id(light1).turn_on();
+                    call.set_brightness(new_brightness);
+                    call.perform();
+              else:
+                - logger.log: Light is off, not adjusting brightness
+    on_rotate_right:
+      - then:
+          - if:
+              condition:
+                light.is_on: light1
+              then:
+                - light.dim_relative:
+                    id: light1
+                    relative_brightness: !lambda |-
+                      return x*2 / 100.0;
+              else:
+                - logger.log: Light is off, not adjusting brightness
+
+    on_rotate_left_pressed:
+      - then:
+          - lambda: |-
+              auto min_temp = id(light1).get_traits().get_min_mireds();
+              auto max_temp = id(light1).get_traits().get_max_mireds();
+              auto cur_temp = id(light1).current_values.get_color_temperature();
+              auto new_temp = max(min_temp, min(max_temp, cur_temp + (x*10)));
+              auto call = id(light1).turn_on();
+              call.set_color_temperature(new_temp);
+              call.perform();
+
+    on_rotate_right_pressed:
+      - then:
+          - lambda: |-
+              auto min_temp = id(light1).get_traits().get_min_mireds();
+              auto max_temp = id(light1).get_traits().get_max_mireds();
+              auto cur_temp = id(light1).current_values.get_color_temperature();
+              auto new_temp = max(min_temp, min(max_temp, cur_temp - (x*10)));
+              auto call = id(light1).turn_on();
+              call.set_color_temperature(new_temp);
+              call.perform();
+

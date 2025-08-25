@@ -1,0 +1,32 @@
+substitutions:
+  name: bindkey-extractor
+  friendly_name: Bindkey Extractor
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+# Enable logging
+logger:
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+
+external_components:
+  - source: github://dentra/esphome-components
+
+ble_client:
+  - mac_address: ${dimmer_mac_address}
+    id: remote_ble_client_id
+
+text_sensor:
+  - platform: miot_ylxx0xyl_pair
+    name: Dimmer Bindkey
+    ble_client_id: remote_ble_client_id
+    product_id: 0x15CE
+
+web_server:
+  port: 80
+

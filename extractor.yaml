@@ -1,0 +1,17 @@
+substitutions:
+  # Insert your dimmer's MAC address
+  dimmer_mac_address: FF:FF:FF:FF:FF:FF
+
+# --------------------------------------------------------------------------
+# Load extractor package
+# --------------------------------------------------------------------------
+
+packages:
+  - !include packages/extractor.yaml
+
+# --------------------------------------------------------------------------
+# Use your own values to set up networking
+# --------------------------------------------------------------------------
+wifi:
+  ssid: <wifi_ssid>
+  password: <wifi_password>
