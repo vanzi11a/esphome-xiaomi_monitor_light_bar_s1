@@ -7,10 +7,16 @@ substitutions:
 # core.yaml should always be included
 # --------------------------------------------------------------------------
 
+
 packages:
-  - !include packages/core.yaml
-  - !include packages/blinking-service.yaml
-  - !include packages/generated-preset-select.yaml
+  mijamonitorlamp:
+    url: https://github.com/vanzi11a/esphome-xiaomi_monitor_light_bar_s1
+    ref: main
+    files:
+      - packages/core.yaml
+      - packages/original-presets.yaml
+    refresh: 0s
+
 
 # --------------------------------------------------------------------------
 # Use your own values below to set up network, api access and ota password

@@ -164,8 +164,12 @@ If you prefer to keep the 5 original presets (Office/Reading/Leisure/Computer/Wa
 
 ```yaml
 packages:
-  - !include packages/core.yaml
-  - !include packages/original-presets.yaml
+  mijamonitorlamp:
+    url: https://github.com/vanzi11a/esphome-xiaomi_monitor_light_bar_s1
+    ref: main
+    files:
+      - packages/core.yaml
+      - packages/original-presets.yaml
 
   # Your wifi, api, ota config...
 ```
@@ -216,8 +220,12 @@ python scripts/generate_presets.py my-presets.json --style select
 2. Update your main configuration to include the generated presets:
 ```yaml
 packages:
-  - !include packages/core.yaml
-  - !include path/to/generated-preset-buttons.yaml  # or generated-preset-select.yaml
+  mijamonitorlamp:
+    url: https://github.com/vanzi11a/esphome-xiaomi_monitor_light_bar_s1
+    ref: main
+    files:
+      - packages/core.yaml
+  local: !include path/to/generated-preset-buttons.yaml  # or generated-preset-select.yaml
 
 # Your wifi, api, ota config...
 ```
@@ -240,8 +248,12 @@ The service blinks the lamp 5 times over 3 seconds then automatically restores t
 Include the blinking service package in your configuration:
 ```yaml
 packages:
-  - !include packages/core.yaml
-  - !include packages/blinking-service.yaml
+  mijamonitorlamp:
+    url: https://github.com/vanzi11a/esphome-xiaomi_monitor_light_bar_s1
+    ref: main
+    files:
+      - packages/core.yaml
+      - packages/blinking-service.yaml
   # Plus your preset package of choice
 
   # Your wifi, api, ota config...
