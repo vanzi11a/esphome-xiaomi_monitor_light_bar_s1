@@ -1,0 +1,100 @@
+# Blinking Service Package
+# Provides a service to blink the lamp 5 times (like original firmware)
+#
+# Usage:
+# packages:
+#   - !include packages/core.yaml
+#   - !include packages/blinking-service.yaml
+#
+# Then call the service:
+# service: blink
+# data:
+#   brightness: 1.0  # optional, defaults to 1.0
+#   color_temperature: 4000  # optional, defaults to 4000K
+
+substitutions:
+  default_blink_temp: "4000" # default color temperature for blinking
+
+globals:
+  - id: blink_restore_brightness
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: blink_restore_temperature
+    type: float
+    restore_value: false 
+    initial_value: '0.0'
+  - id: was_light_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+api:
+  services:
+    - service: blink
+      variables:
+        brightness: float
+        color_temperature: int
+      then:
+        - script.execute:
+            id: blink_sequence
+            brightness: !lambda 'return brightness > 0 ? brightness : 1.0;'
+            color_temperature: !lambda 'return color_temperature > 0 ? color_temperature : ${default_blink_temp};'
+
+script:
+  - id: blink_sequence
+    parameters:
+      brightness: float
+      color_temperature: int
+    then:
+      # Store current state
+      - lambda: |-
+          id(was_light_on) = id(light1).current_values.is_on();
+          if (id(was_light_on)) {
+            id(blink_restore_brightness) = id(light1).current_values.get_brightness();
+            id(blink_restore_temperature) = id(light1).current_values.get_color_temperature();
+          }
+      
+      # Perform 5 blinks manually
+      - repeat:
+          count: 5
+          then:
+            # Turn on with specified brightness and temperature
+            - light.turn_on:
+                id: light1
+                brightness: !lambda 'return brightness;'
+                color_temperature: !lambda 'return 1000000.0f / color_temperature;'
+                transition_length: 100ms
+            - delay: 300ms
+            
+            # Turn off
+            - light.turn_off:
+                id: light1
+                transition_length: 100ms
+            - delay: 200ms
+      
+      # Restore original state
+      - lambda: |-
+          if (id(was_light_on)) {
+            // Restore to previous state
+            auto call = id(light1).turn_on();
+            call.set_brightness(id(blink_restore_brightness));
+            call.set_color_temperature(id(blink_restore_temperature));
+            call.set_transition_length(${default_transition});
+            call.perform();
+          } else {
+            // Light was off, keep it off
+            auto call = id(light1).turn_off();
+            call.set_transition_length(${default_transition});
+            call.perform();
+          }
+
+button:
+  - platform: template
+    name: "Blink Notification"
+    icon: "mdi:lightbulb-alert"
+    on_press:
+      - script.execute:
+          id: blink_sequence
+          brightness: 1.0
+          color_temperature: 4000

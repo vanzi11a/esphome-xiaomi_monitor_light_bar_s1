@@ -3,14 +3,17 @@ substitutions:
   dimmer_mac_address: !secret dimmer_mac_address
 
 # --------------------------------------------------------------------------
-# Load extractor package
+# Load packages firmware packages -- adjust to your own liking
+# core.yaml should always be included
 # --------------------------------------------------------------------------
 
 packages:
   - !include packages/core.yaml
+  - !include packages/blinking-service.yaml
+  - !include packages/generated-preset-select.yaml
 
 # --------------------------------------------------------------------------
-# Use your own values to set up networking
+# Use your own values below to set up network, api access and ota password
 # --------------------------------------------------------------------------
 
 wifi:
@@ -20,8 +23,6 @@ wifi:
 api:
   encryption:
     key: !secret api_encryption_key
-  # Lamp is a lamp after all, no need to reboot if Home Assistant is not available
-  reboot_timeout: 0s
 
 ota:
   platform: esphome

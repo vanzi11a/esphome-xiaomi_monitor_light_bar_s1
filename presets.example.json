@@ -1,0 +1,32 @@
+{
+  "presets": [
+    {
+      "name": "Office",
+      "description": "Bright cool white for work",
+      "temperature": 4500,
+      "brightness": 1.0,
+      "icon": "mdi:office-building"
+    },
+    {
+      "name": "Reading",
+      "description": "Bright cool white for reading",
+      "temperature": 5000,
+      "brightness": 1.0,
+      "icon": "mdi:book-open-variant"
+    },
+    {
+      "name": "Gaming",
+      "description": "Medium warm light for gaming",
+      "temperature": 3000,
+      "brightness": 0.7,
+      "icon": "mdi:gamepad-variant"
+    },
+    {
+      "name": "Night",
+      "description": "Dim warm light for nighttime",
+      "temperature": 2200,
+      "brightness": 0.1,
+      "icon": "mdi:weather-night"
+    }
+  ]
+}

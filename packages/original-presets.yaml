@@ -1,0 +1,69 @@
+# Original hardcoded preset select component
+#
+# Usage:
+# packages:
+#   - !include packages/core.yaml
+#   - !include packages/original-presets.yaml
+
+select:
+  - platform: template
+    name: Mi Monitor Light Bar Preset
+    id: mijamonitorlamp_preset
+    options:
+      - "Office" # 4500K Brightness 100%
+      - "Reading" # 5000K Brightness 100%
+      - "Leisure" # 4000K, Brightness 50%
+      - "Computer" # 2700K, Brightness 50%
+      - "Warm"     # 3500K Brightness 60%
+    #  - "Blinking"
+    # just blinks 5 times, not something useful
+    optimistic: true
+    on_value:
+      then:
+        lambda: !lambda |-
+          auto call = id(light1).turn_on();
+          call.set_transition_length(${default_transition});
+          float t=0.0f;
+
+          switch(i) {
+            case 0:
+              // Mired is an acronym for MIcro REciprocal Degree, a measurement derived by dividing one million by the color temperature in Kelvin.
+              t=1000000 / 4500;
+              call.set_color_temperature(t);
+              call.set_brightness(1.0);
+              break;
+            case 1:
+              t=1000000 / 5000;
+              call.set_color_temperature(t);
+              call.set_brightness(1.0);
+              break;
+            case 2:
+              t=1000000 / 4000;
+              call.set_color_temperature(t);
+              call.set_brightness(0.5);
+              break;
+            case 3:
+              t=1000000 / 2700;
+              call.set_color_temperature(t);
+              call.set_brightness(0.5);
+              break;
+            case 4:
+              t=1000000 / 3500;
+              call.set_color_temperature(t);
+              call.set_brightness(0.6);
+              break;
+          }
+          call.perform();
+
+# Override the BLE dimmer long-press behavior to cycle through presets
+sensor:
+  - platform: miot_ylkg0xyl
+    mac_address: ${dimmer_mac_address}
+    bindkey: ${dimmer_bindkey}
+    product_id: 0x15CE
+    on_long_press:
+      - then:
+          - logger.log: knob was long pressed
+          - select.next:
+              id: mijamonitorlamp_preset
+              cycle: true

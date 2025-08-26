@@ -25,8 +25,29 @@ globals:
     type: int
     restore_value: true
     initial_value: '${min_percentage}'
+  - id: current_preset_index
+    type: int
+    restore_value: true
+    initial_value: '0'
 
 logger:
+
+api:
+  # Lamp is a lamp after all, no need to reboot if Home Assistant is not available
+  reboot_timeout: 0s
+  services:
+    - service: set_preset
+      variables:
+        temperature: int
+        brightness: float
+      then:
+        - lambda: |-
+            auto call = id(light1).turn_on();
+            call.set_transition_length(${default_transition});
+            float t = 1000000.0f / temperature;
+            call.set_color_temperature(t);
+            call.set_brightness(brightness);
+            call.perform();
 
 # TODO: update with dentra's repo after mjgdyk01yl is merged
 external_components:
@@ -108,55 +129,6 @@ light:
     gamma_correct: 1
 
 
-select:
-  - platform: template
-    name: Mi Monitor Light Bar Preset
-    id: mijamonitorlamp_preset
-    options:
-      - "Office" # 4500K Brightness 100%
-      - "Reading" # 5000K Brightness 100%
-      - "Lesiure" # 4000K, Brightness 50%
-      - "Computer" # 2700K, Brightness 50%
-      - "Warm"     # 3500K Brightness 60%
-    #  - "Blinking"
-    # just blinks 5 times, not something useful
-    optimistic: true
-    on_value:
-      then:
-        lambda: !lambda |-
-          auto call = id(light1).turn_on();
-          call.set_transition_length(${default_transition});
-          float t=0.0f;
-
-          switch(i) {
-            case 0:
-              // Mired is an acronym for MIcro REciprocal Degree, a measurement derived by dividing one million by the color temperature in Kelvin.
-              t=1000000 / 4500;
-              call.set_color_temperature(t);
-              call.set_brightness(1.0);
-              break;
-            case 1:
-              t=1000000 / 5000;
-              call.set_color_temperature(t);
-              call.set_brightness(1.0);
-              break;
-            case 2:
-              t=1000000 / 4000;
-              call.set_color_temperature(t);
-              call.set_brightness(0.5);
-              break;
-            case 3:
-              t=1000000 / 2700;
-              call.set_color_temperature(t);
-              call.set_brightness(0.5);
-              break;
-            case 4:
-              t=1000000 / 3500;
-              call.set_color_temperature(t);
-              call.set_brightness(0.6);
-              break;
-          }
-          call.perform();
 
 esp32_ble_tracker:
   max_connections: 1 # Only have 1 remote
@@ -175,10 +147,7 @@ sensor:
 
     on_long_press:
       - then:
-          - logger.log: knob was long pressed
-          - select.next:
-              id: mijamonitorlamp_preset
-              cycle: true
+          - logger.log: "knob was long pressed - no preset cycling configured (use generated presets or include original-presets.yaml)"
 
     on_rotate_left:
       - then:
