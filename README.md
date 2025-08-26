@@ -1,6 +1,6 @@
 # ESPHome support for Mi Computer Monitor Light Bar 1S (MJGJD02YL)
 
-The Xiaomi Mi Computer Monitor Light Bar 1S is a smart CWWW (Cold+Warm White Light) LED lamp, produced by Yeelight for the Xiaomi Mijia brand. It can be controlled via the WiFi network and with a rotating BLE dimmer device. Dimmer supports single and long press action, regular and pressed rotation.
+The Xiaomi Mi Computer Monitor Light Bar 1S is a smart CWWW (Cold+Warm White Light) LED lamp, produced by Yeelight for the Xiaomi Mi brand. It can be controlled via the WiFi network and with a rotating BLE dimmer device. Dimmer supports single and long press action, regular and pressed rotation.
 
 This project provides configuration packages for ESPHome, which make it possible to fully integrate the lamp in your Home Assistant setup.
 
