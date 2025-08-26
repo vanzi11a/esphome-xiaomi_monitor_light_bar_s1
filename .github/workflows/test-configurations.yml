@@ -1,0 +1,147 @@
+name: Test ESPHome Configurations
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-configurations:
+    runs-on: ubuntu-latest
+    container: esphome/esphome:2025.8
+    strategy:
+      fail-fast: false
+      matrix:
+        preset_type: [original, select, buttons]
+        blinking_service: [enabled, disabled]
+        include:
+          - preset_type: original
+            preset_package: packages/original-presets.yaml
+          - preset_type: select
+            preset_package: packages/generated-preset-select.yaml
+          - preset_type: buttons
+            preset_package: packages/generated-preset-buttons.yaml
+
+    name: Test ${{ matrix.preset_type }} presets with blinking ${{ matrix.blinking_service }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate presets if needed
+        if: matrix.preset_type != 'original'
+        run: |
+          python3 scripts/generate_presets.py presets.example.json --style ${{ matrix.preset_type }}
+
+      - name: Create test secrets file
+        run: |
+          cat > secrets.yaml << EOF
+          # Test secrets for CI compilation
+          dimmer_bindkey: "AABBCCDDEEFF00112233445566778899"
+          dimmer_mac_address: "AA:BB:CC:DD:EE:FF"
+          wifi_ssid: "TestNetwork"
+          wifi_password: "testpassword123"
+          api_encryption_key: "ej/37SKqbZszJxhJVmNqkY60ncJauA5rPEm5ywusDLY="
+          ota_password: "testotapassword"
+          EOF
+
+      - name: Create test configuration
+        run: |
+          cat > test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml << EOF
+          substitutions:
+            dimmer_bindkey: !secret dimmer_bindkey
+            dimmer_mac_address: !secret dimmer_mac_address
+          
+          packages:
+            - !include packages/core.yaml
+          
+          EOF
+          
+          # Add blinking service if enabled
+          if [ "${{ matrix.blinking_service }}" = "enabled" ]; then
+            echo "  - !include packages/blinking-service.yaml" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+          fi
+          
+          # Add preset package
+          echo "  - !include ${{ matrix.preset_package }}" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+          
+          # Add network configuration
+          cat >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml << EOF
+          
+          wifi:
+            ssid: !secret wifi_ssid
+            password: !secret wifi_password
+          
+          api:
+            encryption:
+              key: !secret api_encryption_key
+          
+          ota:
+            platform: esphome
+            password: !secret ota_password
+          EOF
+          
+          cat test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+
+      - name: Validate ESPHome configuration
+        run: esphome config test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+
+      - name: Compile ESPHome configuration
+        run: |
+          esphome compile test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+
+      - name: Upload test configuration
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}
+          path: |
+            test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+            secrets.yaml
+
+  test-preset-generator:
+    runs-on: ubuntu-latest
+    container: esphome/esphome:2025.8
+    name: Test Preset Generator Script
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test preset generator help
+        run: python3 scripts/generate_presets.py --help
+
+      - name: Verify example presets exist
+        run: |
+          if [ ! -f "presets.example.json" ]; then
+            echo "Error: presets.example.json not found in repository"
+            exit 1
+          fi
+
+      - name: Verify example file exists
+        run: test -f presets.example.json
+
+      - name: Test generating button-style presets
+        run: python3 scripts/generate_presets.py presets.example.json --style buttons
+
+      - name: Test generating select-style presets
+        run: python3 scripts/generate_presets.py presets.example.json --style select
+
+      - name: Verify generated files exist
+        run: |
+          test -f packages/generated-preset-buttons.yaml
+          test -f packages/generated-preset-select.yaml
+
+      - name: Test custom preset configuration with existing presets
+        run: |
+          # Test generating with different styles using existing presets
+          python3 scripts/generate_presets.py presets.example.json --style buttons
+          python3 scripts/generate_presets.py presets.example.json --style select
+
+      - name: Upload preset generator artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: preset-generator-test-output
+          path: |
+            packages/generated-preset-*.yaml
