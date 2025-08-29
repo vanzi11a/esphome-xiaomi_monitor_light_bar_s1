@@ -55,17 +55,20 @@ jobs:
             dimmer_mac_address: !secret dimmer_mac_address
           
           packages:
-            - !include packages/core.yaml
-          
+            mijamonitorlamp:
+              url: https://github.com/vanzi11a/esphome-xiaomi_monitor_light_bar_s1
+              ref: main
+              refresh: 0s
+              files:
+                - packages/core.yaml
           EOF
-          
           # Add blinking service if enabled
           if [ "${{ matrix.blinking_service }}" = "enabled" ]; then
-            echo "  - !include packages/blinking-service.yaml" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+            echo "      - packages/blinking-service.yaml" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
           fi
           
           # Add preset package
-          echo "  - !include ${{ matrix.preset_package }}" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
+          echo "  preset: !include ${{ matrix.preset_package }}" >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml
           
           # Add network configuration
           cat >> test-config-${{ matrix.preset_type }}-${{ matrix.blinking_service }}.yaml << EOF
