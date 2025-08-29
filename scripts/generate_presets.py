@@ -18,12 +18,21 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any
 
+import textwrap
+
 try:
-    import yaml
+    from ruamel.yaml import YAML
+    from ruamel.yaml.scalarstring import LiteralScalarString
+    yaml_processor = YAML()
+    yaml_processor.default_flow_style = False
+
+    def LS(s):
+        return LiteralScalarString(textwrap.dedent(s))
+
 except ImportError:
-    print("Warning: PyYAML not installed. Install with: pip install pyyaml")
-    print("Falling back to basic YAML generation...")
-    yaml = None
+    print("Error: ruamel.yaml not installed.")
+    print("Install with: pip install ruamel.yaml")
+    sys.exit(1)
 
 
 def load_presets(preset_file: Path) -> List[Dict[str, Any]]:
@@ -31,34 +40,34 @@ def load_presets(preset_file: Path) -> List[Dict[str, Any]]:
     try:
         with open(preset_file, 'r') as f:
             data = json.load(f)
-        
+
         # Validate the structure
         if not isinstance(data, dict) or 'presets' not in data:
             raise ValueError("JSON file must contain a 'presets' array")
-        
+
         presets = data['presets']
         if not isinstance(presets, list):
             raise ValueError("'presets' must be an array")
-        
+
         # Validate each preset
         for i, preset in enumerate(presets):
             required_fields = ['name', 'temperature', 'brightness']
             for field in required_fields:
                 if field not in preset:
                     raise ValueError(f"Preset {i} missing required field: {field}")
-            
+
             # Validate ranges
             temp = preset['temperature']
             brightness = preset['brightness']
-            
+
             if not isinstance(temp, int) or temp < 2200 or temp > 6500:
                 raise ValueError(f"Preset '{preset['name']}': temperature must be integer between 2200-6500K")
-            
+
             if not isinstance(brightness, (int, float)) or brightness < 0.1 or brightness > 1.0:
                 raise ValueError(f"Preset '{preset['name']}': brightness must be number between 0.1-1.0")
-        
+
         return presets
-    
+
     except FileNotFoundError:
         print(f"Error: Preset file '{preset_file}' not found")
         sys.exit(1)
@@ -81,7 +90,7 @@ def generate_preset_buttons(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
         }],
         'button': []
     }
-    
+
     for i, preset in enumerate(presets):
         button = {
             'platform': 'template',
@@ -89,35 +98,47 @@ def generate_preset_buttons(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
             'on_press': [{
                 'lambda': f'id(preset_cycle_index) = {i};'
             }, {
-                'lambda': f'auto call = id(light1).turn_on(); call.set_transition_length(${{default_transition}}); float t = 1000000.0f / {preset["temperature"]}; call.set_color_temperature(t); call.set_brightness({preset["brightness"]}); call.perform();'
+                'lambda': LS(f'''\
+                    auto call = id(light1).turn_on();
+                    call.set_transition_length(${{default_transition}});
+                    float t = 1000000.0f / {preset["temperature"]};
+                    call.set_color_temperature(t);
+                    call.set_brightness({preset["brightness"]});
+                    call.perform();''')
             }]
         }
-        
+
         # Add icon if provided
         if 'icon' in preset:
             button['icon'] = preset['icon']
-        
+
         config['button'].append(button)
-    
+
     # Generate lambda code for cycling through presets
-    cycle_lambda = "int current = id(preset_cycle_index);\n"
-    cycle_lambda += f"int next = (current + 1) % {len(presets)};\n"
-    cycle_lambda += "id(preset_cycle_index) = next;\n\n"
-    cycle_lambda += "auto call = id(light1).turn_on();\n"
-    cycle_lambda += "call.set_transition_length(${default_transition});\n"
-    cycle_lambda += "float t = 0.0f;\n\n"
-    cycle_lambda += "switch(next) {\n"
-    
+    cycle_lambda_code = f'''int current = id(preset_cycle_index);
+int next = (current + 1) % {len(presets)};
+id(preset_cycle_index) = next;
+
+auto call = id(light1).turn_on();
+call.set_transition_length(${{default_transition}});
+float t = 0.0f;
+
+switch(next) {{'''
+
     for i, preset in enumerate(presets):
-        cycle_lambda += f"  case {i}:\n"
-        cycle_lambda += f"    t = 1000000.0f / {preset['temperature']};\n"
-        cycle_lambda += f"    call.set_color_temperature(t);\n"
-        cycle_lambda += f"    call.set_brightness({preset['brightness']});\n"
-        cycle_lambda += f"    break;\n"
-    
-    cycle_lambda += "}\n"
-    cycle_lambda += "call.perform();"
-    
+        cycle_lambda_code += f'''
+  case {i}:
+    t = 1000000.0f / {preset['temperature']};
+    call.set_color_temperature(t);
+    call.set_brightness({preset['brightness']});
+    break;'''
+
+    cycle_lambda_code += '''
+}
+call.perform();'''
+
+    cycle_lambda = LS(cycle_lambda_code)
+
     # Add BLE dimmer override for long-press cycling
     config['sensor'] = [{
         'platform': 'miot_ylkg0xyl',
@@ -128,34 +149,39 @@ def generate_preset_buttons(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
             'then': [{
                 'logger.log': 'knob was long pressed - cycling custom presets'
             }, {
-                'lambda': f'{cycle_lambda}'
+                'lambda': cycle_lambda
             }]
         }]
     }]
-    
+
     return config
 
 
 def generate_select_component(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Generate an alternative select component for presets (similar to original)."""
     options = [preset['name'] for preset in presets]
-    
+
     # Create the lambda code for the on_value action
-    lambda_code = "auto call = id(light1).turn_on();\n"
-    lambda_code += "call.set_transition_length(${default_transition});\n"
-    lambda_code += "float t = 0.0f;\n\n"
-    lambda_code += "switch(i) {\n"
-    
+    lambda_code_str = f'''auto call = id(light1).turn_on();
+call.set_transition_length(${{default_transition}});
+float t = 0.0f;
+
+switch(i) {{'''
+
     for i, preset in enumerate(presets):
-        lambda_code += f"  case {i}:\n"
-        lambda_code += f"    t = 1000000.0f / {preset['temperature']};\n"
-        lambda_code += f"    call.set_color_temperature(t);\n"
-        lambda_code += f"    call.set_brightness({preset['brightness']});\n"
-        lambda_code += f"    break;\n"
-    
-    lambda_code += "}\n"
-    lambda_code += "call.perform();"
-    
+        lambda_code_str += f'''
+  case {i}:
+    t = 1000000.0f / {preset['temperature']};
+    call.set_color_temperature(t);
+    call.set_brightness({preset['brightness']});
+    break;'''
+
+    lambda_code_str += '''
+}
+call.perform();'''
+
+    lambda_code = LS(lambda_code_str)
+
     select_config = {
         'select': [{
             'platform': 'template',
@@ -165,7 +191,7 @@ def generate_select_component(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
             'optimistic': True,
             'on_value': [{
                 'then': [{
-                    'lambda': f'{lambda_code}'
+                    'lambda': lambda_code
                 }]
             }]
         }],
@@ -187,7 +213,7 @@ def generate_select_component(presets: List[Dict[str, Any]]) -> Dict[str, Any]:
             }]
         }]
     }
-    
+
     return select_config
 
 
@@ -203,7 +229,7 @@ def create_example_preset_file(output_path: Path):
                 "icon": "mdi:office-building"
             },
             {
-                "name": "Reading", 
+                "name": "Reading",
                 "description": "Bright cool white for reading",
                 "temperature": 5000,
                 "brightness": 1.0,
@@ -225,10 +251,10 @@ def create_example_preset_file(output_path: Path):
             }
         ]
     }
-    
+
     with open(output_path, 'w') as f:
         json.dump(example_config, f, indent=2)
-    
+
     print(f"Created example preset file: {output_path}")
 
 
@@ -242,25 +268,25 @@ def main():
                         help='Create an example presets.json file')
     parser.add_argument('--style', choices=['buttons', 'select'], default='buttons',
                         help='Generate style: buttons (default) or select component')
-    
+
     args = parser.parse_args()
-    
+
     # Create example file if requested
     if args.create_example:
         create_example_preset_file(Path('presets.example.json'))
         return
-    
+
     preset_file = Path(args.preset_file)
     output_dir = Path(args.output_dir)
-    
+
     # Ensure output directory exists
     output_dir.mkdir(exist_ok=True)
-    
+
     # Load and validate presets
     presets = load_presets(preset_file)
-    
+
     print(f"Loaded {len(presets)} presets from {preset_file}")
-    
+
     # Generate configuration based on style
     if args.style == 'buttons':
         config = generate_preset_buttons(presets)
@@ -270,22 +296,22 @@ def main():
         config = generate_select_component(presets)
         output_file = output_dir / 'generated-preset-select.yaml'
         print("Generating preset select component...")
-    
+
     # Add header comment
     header = f"""# Generated preset configuration
 # Created from: {preset_file}
 # Style: {args.style}
 # Presets: {', '.join([p['name'] for p in presets])}
-# 
+#
 # To regenerate, run:
 # python scripts/generate_presets.py {preset_file} --style {args.style}
 
 """
-    
+
     # Write the configuration
     with open(output_file, 'w') as f:
         f.write(header)
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        yaml_processor.dump(config, f)
     
     print(f"Generated ESPHome configuration: {output_file}")
     print(f"\nTo use, add this to your main configuration:")
