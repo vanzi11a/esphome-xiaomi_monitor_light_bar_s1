@@ -49,12 +49,11 @@ api:
             call.set_brightness(brightness);
             call.perform();
 
-# TODO: update with dentra's repo after mjgdyk01yl is merged
 external_components:
   - source:
       type: git
-      url: https://github.com/vanzi11a/esphome-components
-      ref: add_mjgdyk01yl_support
+      url: https://github.com/dentra/esphome-components
+      ref: master
 
 power_supply:
   - id: power
@@ -139,7 +138,7 @@ sensor:
   - platform: miot_ylkg0xyl
     mac_address: ${dimmer_mac_address}
     bindkey: ${dimmer_bindkey}
-    product_id: 0x15CE
+    model: MJGDYK01YL
     on_short_press:
       - then:
           - light.toggle:

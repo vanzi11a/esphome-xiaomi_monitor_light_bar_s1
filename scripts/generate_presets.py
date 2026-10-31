@@ -144,7 +144,7 @@ call.perform();'''
         'platform': 'miot_ylkg0xyl',
         'mac_address': '${dimmer_mac_address}',
         'bindkey': '${dimmer_bindkey}',
-        'product_id': '0x15CE',
+        'model': 'MJGDYK01YL',
         'on_long_press': [{
             'then': [{
                 'logger.log': 'knob was long pressed - cycling custom presets'
@@ -200,7 +200,7 @@ call.perform();'''
             'platform': 'miot_ylkg0xyl',
             'mac_address': '${dimmer_mac_address}',
             'bindkey': '${dimmer_bindkey}',
-            'product_id': '0x15CE',
+            'model': 'MJGDYK01YL',
             'on_long_press': [{
                 'then': [{
                     'logger.log': 'knob was long pressed - cycling custom presets'

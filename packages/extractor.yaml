@@ -25,7 +25,7 @@ text_sensor:
   - platform: miot_ylxx0xyl_pair
     name: Dimmer Bindkey
     ble_client_id: remote_ble_client_id
-    product_id: 0x15CE
+    model: MJGDYK01YL
 
 web_server:
   port: 80

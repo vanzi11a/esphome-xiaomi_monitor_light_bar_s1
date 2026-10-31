@@ -10,7 +10,7 @@ on:
 jobs:
   test-configurations:
     runs-on: ubuntu-latest
-    container: esphome/esphome:2025.8
+    container: esphome/esphome:2026.10
     strategy:
       fail-fast: false
       matrix:
